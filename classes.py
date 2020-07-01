@@ -1,18 +1,12 @@
+from spell_classes import *
 import random
 from enum import Enum
-import logging
+import copy
+import math
 
 class CasterState(Enum):
 	IDLE = 0
 	CASTING = 1
-
-class SpellState(Enum):
-	AVAILABLE = 0
-	UNAVAILABLE = 1
-
-class ProjectileState(Enum):
-	FLYING = 0
-	LANDED = 1
 
 class Caster:
 	def __init__(self, name):
@@ -26,7 +20,7 @@ class Caster:
 		self.spells = {}
 		self.target = None
 	
-	def __str__(self):
+	def __repr__(self):
 		return 'CASTER: (name: {}, state: {})'.format(self.name, self.state)
 	
 	def startCast(self, spell, target):
@@ -40,9 +34,10 @@ class Caster:
 		modifiedSpellDamage = rawSpellDamage * self.power + spell.powerCoefficient
 		isCrit = True if random.random() < self.critChance else False
 		finalSpellDamage = modifiedSpellDamage * spell.critDamageMultiplier if isCrit else modifiedSpellDamage
+		effects = [copy.deepcopy(x) for x in spell.effects]
+		onCritEffects = [copy.deepcopy(x) for x in spell.onCritEffects]
 
-		projectile = Projectile(source=self, target=self.target, spell=spell, travelTime=spell.travelTime, damage=finalSpellDamage, effect=None)
-		self.target = None
+		projectile = Projectile(caster=self, target=self.target, spell=spell, travelTime=spell.travelTime, damage=finalSpellDamage, school=spell.school, effects=effects, onCritEffects=onCritEffects, isCrit=isCrit)
 		return projectile
 	
 	def updateState(self, elapsedTime):
@@ -51,64 +46,44 @@ class Caster:
 
 		if self.channelingSpell is not None and self.channelingElapsed >= self.channelingSpell.castTime:
 			projectile = self.finishCast()
+			self.channelingElapsed = 0
+			self.target = None
+			self.channelingSpell = None
 			self.state = CasterState.IDLE
 			return projectile
 
 		return None
-    
-class Spell:
-	def __init__(self, name, castTime, travelTime, minDamage, maxDamage, powerCoefficient, effect, critDamageMultiplier):
-		self.name = name
-		self.castTime = castTime
-		self.travelTime = travelTime
-		self.minDamage = minDamage
-		self.maxDamage = maxDamage
-		self.effect = effect
-		self.powerCoefficient = powerCoefficient
-		self.critDamageMultiplier = critDamageMultiplier
-		self.state = SpellState.AVAILABLE
-
-class Projectile:
-	def __init__(self, source, target, spell, travelTime, damage, effect):
-		self.source = source
-		self.target = target
-		self.spell = spell
-		self.travelTime = travelTime
-		self.damage = damage
-		self.effect = effect
-		self.travelElapsed = 0
-		self.state = ProjectileState.FLYING if self.travelTime >= self.travelElapsed else ProjectileState.LANDED
-
-	def __str__(self):
-		return 'PROJECTILE: (source: {}, target: {}, travelTime: {}, elapsed: {}, state: {})'.format(self.source.name,
-			self.target.name, self.travelTime, self.travelElapsed, self.state)
-
-	def land(self):
-		self.target.deal(self.damage)
-		self.target.apply(self.effect)
-		self.state = ProjectileState.LANDED
-
-	def updateState(self, elapsedTime):
-		if self.state == ProjectileState.FLYING:
-			self.travelElapsed += elapsedTime
-		
-		if self.travelElapsed >= self.travelTime:
-			self.state = ProjectileState.LANDED
-
+ 
 class Target:
 	def __init__(self, name):
 		self.name = name
 		self.damageTaken = 0
 		self.landedProjectiles = []
+		self.effects = []
+		self.damageModifiers = {school: 1.0 for school in SpellSchool}
 
-	def deal(self, damage):
+	def deal(self, rawDamage, damageSchool):
+		# apply modifiers then deal the damage
+		damage = rawDamage * self.damageModifiers[damageSchool]
 		self.damageTaken += damage
 
-	def apply(self, effect):
-		pass
+	def apply(self, effects):
+		for e in effects:
+			self.effects.append(e)
 
 	def updateState(self, elapsedTime):
+		for sch, mod in self.damageModifiers.items():
+			mod = math.prod([e.schoolDamageMultiplier for e in self.effects if type(e) is Debuff and e.school == sch])
+
 		for p in self.landedProjectiles:
-			self.deal(p.damage)
-			self.apply(p.effect)
+			self.deal(p.damage, p.school)
+			self.apply(p.effects)
 		self.landedProjectiles = []
+
+		for e in self.effects:
+			e.totalElapsedTime += elapsedTime
+
+			if type(e) is DoT:
+				tickDamage = sum([e.tickDict[ts] for ts in e.tickDict if ts <= e.totalElapsedTime and ts > e.totalElapsedTime - elapsedTime])
+				self.deal(tickDamage, e.school)
+		self.effects = [e for e in self.effects if e.totalElapsedTime < e.duration]
