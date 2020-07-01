@@ -30,7 +30,7 @@ class Spell:
 		self.state = SpellState.AVAILABLE
 
 class Projectile:
-	def __init__(self, caster, target, spell, travelTime, damage, school, effects, onCritEffects, isCrit=False):
+	def __init__(self, caster, target, spell, travelTime, damage, school, effects, isCrit=False):
 		self.caster = caster
 		self.target = target
 		self.spell = spell
@@ -38,7 +38,6 @@ class Projectile:
 		self.damage = damage
 		self.school = school
 		self.effects = effects
-		self.onCritEffects = onCritEffects
 		self.isCrit = isCrit
 		self.travelElapsed = 0
 		self.state = ProjectileState.FLYING if self.travelTime >= self.travelElapsed else ProjectileState.LANDED
@@ -46,11 +45,6 @@ class Projectile:
 	def __repr__(self):
 		return 'PROJECTILE: (caster: {}, target: {}, travelTime: {}, elapsed: {}, state: {})'.format(self.caster.name,
 			self.target.name, self.travelTime, self.travelElapsed, self.state)
-
-	def land(self):
-		self.target.deal(self.damage)
-		self.target.apply(self.effect if not self.isCrit else self.effects + self.onCritEffects)
-		self.state = ProjectileState.LANDED
 
 	def updateState(self, elapsedTime):
 		if self.state == ProjectileState.FLYING:
@@ -60,13 +54,15 @@ class Projectile:
 			self.state = ProjectileState.LANDED
 
 class Effect: #break this down
-	def __init__(self, duration):
+	def __init__(self, name, duration, caster):
+		self.name = name
 		self.duration = duration
+		self.caster = caster
 		self.totalElapsedTime = 0
 
 class DoT(Effect):
-	def __init__(self, duration, totalDamage, ticks, school):
-		super().__init__(duration)
+	def __init__(self, name, duration, caster, totalDamage, ticks, school):
+		super().__init__(name, duration, caster)
 		self.totalDamage = totalDamage
 		self.ticks = ticks
 		self.school = school
@@ -75,8 +71,13 @@ class DoT(Effect):
 			self.tickDict[ts] = self.totalDamage / ticks
 
 class Debuff(Effect):
-	def __init__(self, duration, school, maxStacks, schoolDamageMultiplier):
-		super().__init__(duration)
+	def __init__(self, name, duration, caster, school, maxStacks, schoolDamageMultiplier):
+		super().__init__(name, duration, caster)
 		self.school = school
 		self.maxStacks = maxStacks
 		self.schoolDamageMultiplier = schoolDamageMultiplier
+		self.currentStack = 1
+
+	def refresh(self):
+		self.totalElapsedTime = 0
+		self.currentStack = self.currentStack + 1 if self.currentStack < self.maxStacks else self.maxStacks

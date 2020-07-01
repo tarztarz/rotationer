@@ -36,8 +36,9 @@ class Caster:
 		finalSpellDamage = modifiedSpellDamage * spell.critDamageMultiplier if isCrit else modifiedSpellDamage
 		effects = [copy.deepcopy(x) for x in spell.effects]
 		onCritEffects = [copy.deepcopy(x) for x in spell.onCritEffects]
+		effects = effects + onCritEffects if isCrit else effects
 
-		projectile = Projectile(caster=self, target=self.target, spell=spell, travelTime=spell.travelTime, damage=finalSpellDamage, school=spell.school, effects=effects, onCritEffects=onCritEffects, isCrit=isCrit)
+		projectile = Projectile(caster=self, target=self.target, spell=spell, travelTime=spell.travelTime, damage=finalSpellDamage, school=spell.school, effects=effects, isCrit=isCrit)
 		return projectile
 	
 	def updateState(self, elapsedTime):
@@ -63,27 +64,24 @@ class Target:
 		self.damageModifiers = {school: 1.0 for school in SpellSchool}
 
 	def deal(self, rawDamage, damageSchool):
-		# apply modifiers then deal the damage
 		damage = rawDamage * self.damageModifiers[damageSchool]
 		self.damageTaken += damage
+		return damage
 
-	def apply(self, effects):
-		for e in effects:
-			self.effects.append(e)
+	def apply(self, effect):
+		if type(effect) is Debuff:
+			previousDebuff = next((e for e in self.effects if e.name == effect.name), None)
+			if previousDebuff is None:
+				self.effects.append(effect)
+				return effect
+			else:
+				previousDebuff.refresh()
+				return previousDebuff
+		else:
+			self.effects.append(effect)
+			return effect
 
-	def updateState(self, elapsedTime):
+	def updateModifiers(self, elapsedTime):
 		for sch, mod in self.damageModifiers.items():
 			mod = math.prod([e.schoolDamageMultiplier for e in self.effects if type(e) is Debuff and e.school == sch])
-
-		for p in self.landedProjectiles:
-			self.deal(p.damage, p.school)
-			self.apply(p.effects)
-		self.landedProjectiles = []
-
-		for e in self.effects:
-			e.totalElapsedTime += elapsedTime
-
-			if type(e) is DoT:
-				tickDamage = sum([e.tickDict[ts] for ts in e.tickDict if ts <= e.totalElapsedTime and ts > e.totalElapsedTime - elapsedTime])
-				self.deal(tickDamage, e.school)
-		self.effects = [e for e in self.effects if e.totalElapsedTime < e.duration]
+		return self.damageModifiers
