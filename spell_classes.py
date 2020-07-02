@@ -1,6 +1,7 @@
 import random
 from enum import Enum
 import logging
+import math
 
 class SpellState(Enum):
 	AVAILABLE = 0
@@ -38,6 +39,8 @@ class Projectile:
 		self.damage = damage
 		self.school = school
 		self.effects = effects
+		for e in self.effects:
+			e.casterOwner = self.caster
 		self.isCrit = isCrit
 		self.travelElapsed = 0
 		self.state = ProjectileState.FLYING if self.travelTime >= self.travelElapsed else ProjectileState.LANDED
@@ -54,30 +57,42 @@ class Projectile:
 			self.state = ProjectileState.LANDED
 
 class Effect: #break this down
-	def __init__(self, name, duration, caster):
+	def __init__(self, name, duration, maxStacks, school):
 		self.name = name
 		self.duration = duration
-		self.caster = caster
+		self.maxStacks = maxStacks
+		self.school = school
 		self.totalElapsedTime = 0
+		self.currentStack = 1
+		self.casterOwner = None
+		self.uptime = 0
 
 class DoT(Effect):
-	def __init__(self, name, duration, caster, totalDamage, ticks, school):
-		super().__init__(name, duration, caster)
-		self.totalDamage = totalDamage
-		self.ticks = ticks
-		self.school = school
-		self.tickDict = {}
-		for ts in range(ticks):
-			self.tickDict[ts] = self.totalDamage / ticks
+	def __init__(self, name, duration, maxStacks, school, damageMultiplier, tick):
+		super().__init__(name, duration, maxStacks, school)
+		self.damageMultiplier = damageMultiplier
+		self.tick = tick
+		self.lastTickTS = 0
+		self.tickDamage = 0
+
+	def calculateTickDamage(self, projectileDamage):
+		rawTotalDamage = self.damageMultiplier * projectileDamage
+		maxTickCount = math.floor(self.duration / self.tick)
+		return rawTotalDamage / maxTickCount
+
+	def refresh(self, tickDamage):
+		self.totalElapsedTime = 0
+		if self.currentStack < self.maxStacks:
+			self.currentStack += 1
+			self.tickDamage += tickDamage
+		else:
+			self.currentStack = self.maxStacks
 
 class Debuff(Effect):
-	def __init__(self, name, duration, caster, school, maxStacks, schoolDamageMultiplier):
-		super().__init__(name, duration, caster)
-		self.school = school
-		self.maxStacks = maxStacks
+	def __init__(self, name, duration, maxStacks, school, schoolDamageMultiplier):
+		super().__init__(name, duration, maxStacks, school)
 		self.schoolDamageMultiplier = schoolDamageMultiplier
-		self.currentStack = 1
-
+	
 	def refresh(self):
 		self.totalElapsedTime = 0
 		self.currentStack = self.currentStack + 1 if self.currentStack < self.maxStacks else self.maxStacks

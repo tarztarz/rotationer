@@ -34,6 +34,7 @@ class Caster:
 		modifiedSpellDamage = rawSpellDamage * self.power + spell.powerCoefficient
 		isCrit = True if random.random() < self.critChance else False
 		finalSpellDamage = modifiedSpellDamage * spell.critDamageMultiplier if isCrit else modifiedSpellDamage
+		
 		effects = [copy.deepcopy(x) for x in spell.effects]
 		onCritEffects = [copy.deepcopy(x) for x in spell.onCritEffects]
 		effects = effects + onCritEffects if isCrit else effects
@@ -63,25 +64,41 @@ class Target:
 		self.effects = []
 		self.damageModifiers = {school: 1.0 for school in SpellSchool}
 
-	def deal(self, rawDamage, damageSchool):
+	def modifyDamage(self, rawDamage, damageSchool):
 		damage = rawDamage * self.damageModifiers[damageSchool]
-		self.damageTaken += damage
 		return damage
 
-	def apply(self, effect):
+	def apply(self, effect, TS):
+		existingEffect = next((e for e in self.effects if e.name == effect.name), None)
 		if type(effect) is Debuff:
-			previousDebuff = next((e for e in self.effects if e.name == effect.name), None)
-			if previousDebuff is None:
+			if existingEffect is None:
 				self.effects.append(effect)
 				return effect
 			else:
-				previousDebuff.refresh()
-				return previousDebuff
-		else:
+				existingEffect.refresh()
+				return existingEffect
+		elif type(effect) is DoT:
+			
+			effect.tickDamage = self.modifyDamage(rawTickDamage, effect.school)
+			effect.lastTickTS = TS
+			if existingEffect is None:
+				self.effects.append(effect)
+				return effect
+			else:
+				if effect.maxStacks > 1:
+					existingEffect.refresh(effect.tickDamage)
+					return existingEffect
+				else:
+					self.effects.remove(existingEffect)
+					self.effects.append(effect)
+					return effect
+
 			self.effects.append(effect)
 			return effect
 
 	def updateModifiers(self, elapsedTime):
-		for sch, mod in self.damageModifiers.items():
-			mod = math.prod([e.schoolDamageMultiplier for e in self.effects if type(e) is Debuff and e.school == sch])
+		for sch in self.damageModifiers:
+			self.damageModifiers[sch] = math.prod([math.pow(e.schoolDamageMultiplier, e.currentStack)  for e in self.effects if type(e) is Debuff and e.school == sch])
 		return self.damageModifiers
+
+# TODO make damage class. target.damageTaken wil be a list of damage, to make analysis at the end easier
