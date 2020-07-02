@@ -36,6 +36,10 @@ def logDotApplied(TS, dot, target):
 	logging.info('{0}: {1} (dot) applied to {2} by {3} for {4} tick damage every {5}s for {6}s (stack size {7})'.format(TS,
 		dot.name, target.name, dot.casterOwner.name, dot.tickDamage, dot.tick, dot.duration, dot.currentStack))
 
+def logDotClipped(TS, dot, clippedDot, target):
+	logging.info('{0}: {1} (dot) clipped at {2} by {3} (clipped time {8}s) for {4} tick damage every {5}s for {6}s (stack size {7})'.format(TS,
+		dot.name, target.name, dot.casterOwner.name, dot.tickDamage, dot.tick, dot.duration, dot.currentStack, (clippedDot.duration - clippedDot.totalElapsedTime)))
+
 def logDotRefreshed(TS, dot, refresherDot, target):
 	logging.info('{0}: {1} (dot) on {2} owned by {3} refreshed by {4} (stack size {5}) for {6} tick damage every {7}s'.format(TS,
 		dot.name, target.name, dot.casterOwner.name, refresherDot.casterOwner.name, dot.currentStack, dot.tickDamage, dot.tick))
