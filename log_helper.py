@@ -4,7 +4,7 @@ import logging
 class Events(Enum):
 	CASTSTART = 0
 	CASTEND = 1
-	PROJECTILEHIT = 2
+	PROJECTILELAND = 2
 	PROJECTILEDAMAGE = 3
 	DOTAPPLIED = 4
 	DOTREFRESHED = 5
@@ -15,22 +15,48 @@ class Events(Enum):
 def setupLogging():
 	logging.basicConfig(filename='log.log',level=logging.INFO, format='%(asctime)s %(message)s')
 
-def log(event, *args): # TODO: log as dict of functions with defined parameters (no more *args bs)
-	if event == Events.CASTSTART:
-		logging.info('{}: {} STARTED CASTING {} at {}. CastTime: {}s'.format(*args))
-	elif event == Events.CASTEND:
-		logging.info('{}: {} FINISHED CASTING {} at {}. TravelTime: {}s'.format(*args))
-	elif event == Events.PROJECTILEHIT:
-		logging.info('{}: {} HIT with {} ({}), {} raw damage {}'.format(*args))
-	elif event == Events.PROJECTILEDAMAGE:
-		logging.info('{}: {} DEALT {} damage from {} ({}) after {} modifier for {}'.format(*args))
-	elif event == Events.DOTAPPLIED:
-		logging.info('{}: {} APPLIED to {} by {} for {} damage every {}s for {}s (stack size {})'.format(*args))
-	elif event == Events.DOTREFRESHED:
-		logging.info('{} DOT REFRESHED | dot: {}, target: {}, new tick damage: {}, refresher: {}, owner: {}, stack size: {}, uptime: {}s'.format(*args))
-	elif event == Events.DOTDAMAGE:
-		logging.info('{} DOT DAMAGE | dot: {}, target: {}, damage: {}, caster: {}, stack size: {}, ticks: {}, last tick TS: {}s, uptime: {}s'.format(*args))
-	elif event == Events.DEBUFFAPPLIED:
-		logging.info('{}: {} APPLIED to {} by {} (stack size {})'.format(*args))
-	elif event == Events.DEBUFFREFRESHED:
-		logging.info('{} DEBUFF REFRESHED | debuff: {}, target: {}, caster: {}, owner: {}, stack size: {}'.format(*args))
+def logCastStart(TS, caster):
+	logging.info('{0}: {1} started casting {2} at {3}. CastTime: {4}s'.format(TS,
+		caster.name, caster.channelingSpell.name, caster.target.name, caster.channelingSpell.castTime))
+
+def logCastEnd(TS, projectile):
+	logging.info('{0}: {1} finished casting {2} at {3}. TravelTime: {4}s'.format(TS,
+		projectile.caster.name, projectile.spell.name, projectile.target.name, projectile.spell.travelTime))
+
+def logProjectileLand(TS, projectile):
+	logging.info('{0}: {1} from {2} landed on {3} for {4} raw damage {5}'.format(TS,
+		projectile.spell.name, projectile.caster.name, projectile.target.name, projectile.damage, 'CRITICAL' if projectile.isCrit else ''))
+
+def logProjectileDamage(TS, projectile, damage):
+	logging.info('{0}: {1} dealt {2} damage from {3} (projectile) cast by {4} after {5} modifier for {6}'.format(TS,
+		projectile.target.name, damage, projectile.spell.name, projectile.caster.name, projectile.target.damageModifiers[projectile.school], projectile.school.name))
+
+def logDotApplied(TS, dot, target):
+	logging.info('{0}: {1} (dot) applied to {2} by {3} for {4} tick damage every {5}s for {6}s (stack size {7})'.format(TS,
+		dot.name, target.name, dot.casterOwner.name, dot.tickDamage, dot.tick, dot.duration, dot.currentStack))
+
+def logDotRefreshed(TS, dot, refresherDot, target):
+	logging.info('{0}: {1} (dot) on {2} owned by {3} refreshed by {4} (stack size {5}) for {6} tick damage every {7}s'.format(TS,
+		dot.name, target.name, dot.casterOwner.name, refresherDot.casterOwner.name, dot.currentStack, dot.tickDamage, dot.tick))
+
+def logDotDamage(TS, dot, target, damage, tickCount):
+	logging.info('{0}: {1} dealt {2} damage from {3} (dot) owned by {4} (stack size {5}) from {6} ticks (last tick TS {7}s) (total uptime {8}s)'.format(TS,
+		target.name, damage, dot.name, dot.casterOwner.name, dot.currentStack, tickCount, dot.lastTickTS, dot.uptime))
+
+def logDebuffApplied(TS, debuff, target):
+	logging.info('{0}: {1} (debuff) applied to {2} by {3} (stack size {4})'.format(TS,
+		debuff.name, target.name, debuff.casterOwner.name, debuff.currentStack))
+
+def logDebuffRefreshed(TS, debuff, refresherDebuff, target):
+	logging.info('{0}: {1} (debuff) on {2} owned by {3} refreshed by {4} (stack size {5}) (total uptime {6}s)'.format(TS,
+		debuff.name, target.name, debuff.casterOwner.name, refresherDebuff.casterOwner.name, debuff.currentStack, debuff.uptime))
+
+log = {Events.CASTSTART: logCastStart,
+	Events.CASTEND: logCastEnd,
+	Events.PROJECTILELAND: logProjectileLand,
+	Events.PROJECTILEDAMAGE: logProjectileDamage,
+	Events.DOTAPPLIED: logDotApplied,
+	Events.DOTREFRESHED: logDotRefreshed,
+	Events.DOTDAMAGE: logDotDamage,
+	Events.DEBUFFAPPLIED: logDebuffApplied,
+	Events.DEBUFFREFRESHED: logDebuffRefreshed}

@@ -52,14 +52,14 @@ def updateCasters(casters, target, elapsedTime, newTS):
 	for c in casters:
 		if c.state == CasterState.IDLE:
 			c.startCast(spell=c.spells['scorch'], target=target)
-			log(Events.CASTSTART, newTS, c.name, c.channelingSpell.name, c.target.name, c.channelingSpell.castTime)
+			log[Events.CASTSTART](TS=newTS, caster=c)
 		else:
 			p = c.updateState(elapsedTime)
 			if p is not None:
-				log(Events.CASTEND, newTS, p.caster.name, p.spell.name, p.target.name, p.spell.travelTime)
+				log[Events.CASTEND](TS=newTS, projectile=p)
 				if p.state == ProjectileState.LANDED:
 					p.target.landedProjectiles.append(p)
-					log(Events.HIT, newTS, p.target.name, p.spell.name, p.caster.name, p.damage, 'CRITICAL' if p.isCrit else '')
+					log[Events.PROJECTILELAND](TS=newTS, projectile=p)
 				else:
 					newProjectiles.append(p)
 	return (casters, newProjectiles)
@@ -71,7 +71,7 @@ def updateProjectiles(projectiles, elapsedTime, newTS):
 
 		if p.state == ProjectileState.LANDED:
 			p.target.landedProjectiles.append(p)
-			log(Events.PROJECTILEHIT, newTS, p.target.name, p.spell.name, p.caster.name, p.damage, 'CRITICAL' if p.isCrit else '')
+			log[Events.PROJECTILELAND](TS=newTS, projectile=p)
 		else:
 			flyingProjectiles.append(p)
 	return flyingProjectiles
@@ -88,22 +88,22 @@ def updateTarget(target, elapsedTime, newTS):
 				target.damageTaken += totalDamage
 				e.lastTickTS = e.lastTickTS + (tickCount * e.tick)
 				e.uptime += (tickCount * e.tick)
-				log(Events.DOTDAMAGE, newTS, e.name, target.name, totalDamage, e.casterOwner, e.currentStack, tickCount, e.lastTickTS, e.uptime)
+				log[Events.DOTDAMAGE](TS=newTS, dot=e, target=target, damage=totalDamage, tickCount=tickCount)
 	target.effects = [e for e in target.effects if e.totalElapsedTime < e.duration]
 
 	for p in target.landedProjectiles:
 		dmg = target.modifyDamage(p.damage, p.school)
 		target.damageTaken += dmg
-		log(Events.PROJECTILEDAMAGE, newTS, target.name, dmg, p.spell.name, p.caster.name, target.damageModifiers[p.school], p.school.name)
+		log[Events.PROJECTILEDAMAGE](TS=newTS, projectile=p, damage=dmg)
 		
 		for deb in (e for e in p.effects if type(e) is Debuff):
 			existingDebuff = next((e for e in target.effects if e.name == deb.name), None)
 			if existingDebuff is None:
 				target.effects.append(deb)
-				log(Events.DEBUFFAPPLIED, newTS, deb.name, target.name, deb.casterOwner.name, deb.currentStack)
+				log[Events.DEBUFFAPPLIED](TS=newTS, debuff=deb, target=target)
 			else:
 				existingDebuff.refresh()
-				log(Events.DEBUFFREFRESHED, newTS, existingDebuff.name, target.name, deb.casterOwner.name, existingDebuff.casterOwner.name, existingDebuff.currentStack)
+				log[Events.DEBUFFREFRESHED](TS=newTS, debuff=existingDebuff, refresherDebuff=deb, target=target)
 			
 		for dot in (e for e in p.effects if type(e) is DoT):
 			oldDot = next((e for e in target.effects if e.name == dot.name), None)
@@ -111,16 +111,16 @@ def updateTarget(target, elapsedTime, newTS):
 			dot.lastTickTS = newTS
 			if oldDot is None:
 				target.effects.append(dot)
-				log(Events.DOTAPPLIED, newTS, dot.name, target.name, dot.casterOwner.name, dot.tickDamage, dot.tick, dot.duration, dot.currentStack)
+				log[Events.DOTAPPLIED](TS=newTS, dot=dot, target=target)
 			else:
 				if oldDot.maxStacks > 1:
 					oldDot.refresh(dot.tickDamage)
-					log(Events.DOTREFRESHED, newTS, oldDot.name, target.name, oldDot.tickDamage, oldDot.casterOwner.name, dot.casterOwner.name, oldDot.currentStack, oldDot.uptime)
+					log[Events.DOTREFRESHED](TS=newTS, dot=oldDot, refresherDot=dot, target=target)
 				else:
 					target.effects.remove(oldDot)
 					target.effects.append(dot)
 					# TODO Events.DOTREPLACED
-					log(Events.DOTAPPLIED, newTS, dot.name, target.name, dot.casterOwner.name, dot.tickDamage, dot.tick, dot.duration, dot.currentStack)			
+					log[Events.DOTAPPLIED](TS=newTS, dot=dot, target=target)
 	target.landedProjectiles = []
 	return target
 
