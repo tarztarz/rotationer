@@ -89,6 +89,8 @@ def updateTarget(target, elapsedTime, newTS):
 				e.lastTickTS = e.lastTickTS + (tickCount * e.tick)
 				e.uptime += (tickCount * e.tick)
 				log[Events.DOTDAMAGE](TS=newTS, dot=e, target=target, damage=totalDamage, tickCount=tickCount)
+		elif type(e) is Debuff:
+			e.uptime += newTS
 	target.effects = [e for e in target.effects if e.totalElapsedTime < e.duration]
 
 	for p in target.landedProjectiles:
@@ -119,8 +121,7 @@ def updateTarget(target, elapsedTime, newTS):
 				else:
 					target.effects.remove(oldDot)
 					target.effects.append(dot)
-					# TODO Events.DOTREPLACED
-					log[Events.DOTAPPLIED](TS=newTS, dot=dot, target=target)
+					log[Events.DOTCLIPPED](TS=newTS, dot=dot, clippedDot=oldDot, target=target)
 	target.landedProjectiles = []
 	return target
 

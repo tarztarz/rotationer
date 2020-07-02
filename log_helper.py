@@ -9,8 +9,9 @@ class Events(Enum):
 	DOTAPPLIED = 4
 	DOTREFRESHED = 5
 	DOTDAMAGE = 6
-	DEBUFFAPPLIED = 7
-	DEBUFFREFRESHED = 8
+	DOTCLIPPED = 7
+	DEBUFFAPPLIED = 8
+	DEBUFFREFRESHED = 9
 
 def setupLogging():
 	logging.basicConfig(filename='log.log',level=logging.INFO, format='%(asctime)s %(message)s')
