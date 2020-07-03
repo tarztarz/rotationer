@@ -1,6 +1,6 @@
 from classes import *
 from spell_classes import *
-from log_helper import *
+from log_helper import logs, setupLogging, Events
 from enum import Enum
 import math
 
@@ -20,6 +20,8 @@ def main():
 	logging.info('end: {} took {} total damage'.format(stateHistory[-1][TARGET].name, stateHistory[-1][TARGET].damageTaken))
 
 def initializeState():
+	# TODO spell and effects library
+	# TODO rotations
 	c1 = Caster('Tarz')
 	c1.spells['scorch'] = Spell(name='scorch', castTime=1.5, travelTime=0, minDamage=237, maxDamage=280, powerCoefficient=0.429, critDamageMultiplier=2, school=SpellSchool.FIRE)
 	c1.spells['scorch'].onCritEffects.append(Debuff(name='improved scorch', duration=30, maxStacks=5, school=SpellSchool.FIRE, schoolDamageMultiplier=1.03))
@@ -52,14 +54,14 @@ def updateCasters(casters, target, elapsedTime, newTS):
 	for c in casters:
 		if c.state == CasterState.IDLE:
 			c.startCast(spell=c.spells['scorch'], target=target)
-			log[Events.CASTSTART](TS=newTS, caster=c)
+			logs[Events.CASTSTART](TS=newTS, caster=c)
 		else:
 			p = c.updateState(elapsedTime)
 			if p is not None:
-				log[Events.CASTEND](TS=newTS, projectile=p)
+				logs[Events.CASTEND](TS=newTS, projectile=p)
 				if p.state == ProjectileState.LANDED:
 					p.target.landedProjectiles.append(p)
-					log[Events.PROJECTILELAND](TS=newTS, projectile=p)
+					logs[Events.PROJECTILELAND](TS=newTS, projectile=p)
 				else:
 					newProjectiles.append(p)
 	return (casters, newProjectiles)
@@ -71,7 +73,7 @@ def updateProjectiles(projectiles, elapsedTime, newTS):
 
 		if p.state == ProjectileState.LANDED:
 			p.target.landedProjectiles.append(p)
-			log[Events.PROJECTILELAND](TS=newTS, projectile=p)
+			logs[Events.PROJECTILELAND](TS=newTS, projectile=p)
 		else:
 			flyingProjectiles.append(p)
 	return flyingProjectiles
@@ -88,7 +90,7 @@ def updateTarget(target, elapsedTime, newTS):
 				target.damageTaken += totalDamage
 				e.lastTickTS = e.lastTickTS + (tickCount * e.tick)
 				e.uptime += (tickCount * e.tick)
-				log[Events.DOTDAMAGE](TS=newTS, dot=e, target=target, damage=totalDamage, tickCount=tickCount)
+				logs[Events.DOTDAMAGE](TS=newTS, dot=e, target=target, damage=totalDamage, tickCount=tickCount)
 		elif type(e) is Debuff:
 			e.uptime += newTS
 	target.effects = [e for e in target.effects if e.totalElapsedTime < e.duration]
@@ -96,16 +98,16 @@ def updateTarget(target, elapsedTime, newTS):
 	for p in target.landedProjectiles:
 		dmg = target.modifyDamage(p.damage, p.school)
 		target.damageTaken += dmg
-		log[Events.PROJECTILEDAMAGE](TS=newTS, projectile=p, damage=dmg)
+		logs[Events.PROJECTILEDAMAGE](TS=newTS, projectile=p, damage=dmg)
 		
 		for deb in (e for e in p.effects if type(e) is Debuff):
 			existingDebuff = next((e for e in target.effects if e.name == deb.name), None)
 			if existingDebuff is None:
 				target.effects.append(deb)
-				log[Events.DEBUFFAPPLIED](TS=newTS, debuff=deb, target=target)
+				logs[Events.DEBUFFAPPLIED](TS=newTS, debuff=deb, target=target)
 			else:
 				existingDebuff.refresh()
-				log[Events.DEBUFFREFRESHED](TS=newTS, debuff=existingDebuff, refresherDebuff=deb, target=target)
+				logs[Events.DEBUFFREFRESHED](TS=newTS, debuff=existingDebuff, refresherDebuff=deb, target=target)
 			
 		for dot in (e for e in p.effects if type(e) is DoT):
 			oldDot = next((e for e in target.effects if e.name == dot.name), None)
@@ -113,15 +115,15 @@ def updateTarget(target, elapsedTime, newTS):
 			dot.lastTickTS = newTS
 			if oldDot is None:
 				target.effects.append(dot)
-				log[Events.DOTAPPLIED](TS=newTS, dot=dot, target=target)
+				logs[Events.DOTAPPLIED](TS=newTS, dot=dot, target=target)
 			else:
 				if oldDot.maxStacks > 1:
 					oldDot.refresh(dot.tickDamage)
-					log[Events.DOTREFRESHED](TS=newTS, dot=oldDot, refresherDot=dot, target=target)
+					logs[Events.DOTREFRESHED](TS=newTS, dot=oldDot, refresherDot=dot, target=target)
 				else:
 					target.effects.remove(oldDot)
 					target.effects.append(dot)
-					log[Events.DOTCLIPPED](TS=newTS, dot=dot, clippedDot=oldDot, target=target)
+					logs[Events.DOTCLIPPED](TS=newTS, dot=dot, clippedDot=oldDot, target=target)
 	target.landedProjectiles = []
 	return target
 
